@@ -183,3 +183,122 @@ We would like to thank the following open source projects that made AgentIQ poss
 - [Ragas](https://github.com/explodinggradients/ragas)
 - [Semantic Kernel](https://github.com/microsoft/semantic-kernel)
 - [uv](https://github.com/astral-sh/uv)
+
+# LLM-Powered Audience Research Agent
+
+This audience research agent provides comprehensive, data-driven insights about target audiences using a combination of web search and advanced LLM processing. It transforms raw web data into structured, actionable audience intelligence.
+
+## Features
+
+- **Demographic Analysis**: Detailed demographic breakdown of target audiences based on industry and region, including age distribution, gender, income levels, education, geographic concentrations, and psychographics.
+
+- **Buyer Persona Creation**: Generation of realistic, data-driven buyer personas with detailed attributes including goals, challenges, communication preferences, and buying processes.
+
+- **Competitor Analysis**: Comprehensive analysis of competitors in a specific industry, including their strengths, weaknesses, market positioning, and product offerings.
+
+- **Web-Search Based Intelligence**: All insights are gathered in real-time from diverse web sources for up-to-date, factually-grounded results.
+
+- **LLM-Powered Analysis**: Advanced NeMo and Groq LLMs process and structure raw data into meaningful insights.
+
+- **Data Validation**: Secondary LLM validation ensures accuracy and consistency of all results.
+
+- **Multi-Layered Fallback Systems**: Graceful degradation through tiered fallback systems when external services are unavailable.
+
+## Architecture
+
+The agent follows a multi-stage process for audience intelligence gathering:
+
+1. **Data Collection**: Using Tavily API to perform targeted web searches across diverse sources
+2. **Data Analysis**: Using NVIDIA NeMo models to analyze and structure the raw data
+3. **Insight Generation**: Transforming structured data into comprehensive audience intelligence
+4. **Validation**: Using Groq LLM to validate outputs for consistency and accuracy
+5. **Fallback Handling**: Multi-tiered fallback approaches when services are unavailable
+
+## Setup
+
+### Prerequisites
+
+- Python 3.9+
+- Required Python packages (see requirements.txt)
+- API keys for the services used
+
+### Installation
+
+1. Clone this repository
+2. Install the required dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+3. Copy the `.env.example` file to `.env` and add your API keys:
+   ```
+   cp .env.example .env
+   ```
+4. Edit the `.env` file to add your API keys:
+   - `TAVILY_API_KEY`: Required for web search functionality
+   - `NVIDIA_API_KEY`: For primary LLM analysis
+   - `GROQ_API_KEY`: For secondary validation
+   
+### Configuration
+
+The agent can be configured through the following environment variables:
+
+- `ENABLE_CACHE`: Set to `true` to enable caching of search results (default: true)
+- `CACHE_EXPIRY_SECONDS`: How long to cache results (default: 3600 seconds)
+- `LOGGING_LEVEL`: Set to DEBUG, INFO, WARNING, or ERROR (default: INFO)
+
+## Usage
+
+Import and use the functions in your Python application:
+
+```python
+from aiq_audience_research import demographic_analysis, persona_builder, competitor_analysis
+
+# Get demographic analysis
+demographics = await demographic_analysis(
+    industry="healthcare",
+    region="United States"
+)
+
+# Create a buyer persona
+persona = await persona_builder(
+    industry="software", 
+    region="Europe",
+    job_roles=["marketing manager", "CMO"],
+    product_needs=["marketing automation", "analytics"]
+)
+
+# Analyze competitors
+competitors = await competitor_analysis(
+    industry="e-commerce",
+    region="United States",
+    competitors=["Amazon", "Shopify", "BigCommerce"]
+)
+```
+
+## External Services
+
+This agent relies on the following external services:
+
+- **Tavily API**: Web search capabilities
+- **NVIDIA API**: Primary LLM for analysis
+- **Groq API**: Secondary LLM for validation
+
+See `THIRD_PARTY_SERVICES.md` for details on services used.
+
+## Error Handling
+
+The agent implements a multi-layered approach to error handling:
+
+1. **Primary Web Search + LLM**: Main path using web search and NeMo LLM
+2. **LLM-Only Fallback**: If web search fails, uses the LLM's knowledge
+3. **Minimal Fallback**: If both above fail, returns minimal structured data
+
+## Limitations
+
+- Results are limited by the quality and recency of available web data
+- Free tier API limits may restrict heavy usage (100 searches/day on Tavily free tier)
+- LLM analysis has inherent limitations in factual accuracy and consistency
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

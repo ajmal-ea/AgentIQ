@@ -1,0 +1,83 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Audience Research Agent - Cursor Rules
+
+## Overview
+This project is an Audience Research Agent for prospect marketing built with NVIDIA AgentIQ. The agent orchestrates multiple tool calls to:
+- Perform keyword research
+- Analyze competitors
+- Extract demographic insights
+- Build detailed audience personas
+
+These rules guide the AI completion engine in the Cursor IDE when writing or editing project code.
+
+## Project Context
+- **Language:** Python
+- **Framework:** NVIDIA AgentIQ
+- **Configuration File:** `workflow.yml` (YAML-based)
+- **Custom Functions:** Defined using the `@register_function` decorator from the `agentiq.tool` module
+
+## Custom Function Signatures & Descriptions
+
+### `keyword_research`
+- **Signature:** `async def keyword_research(config: KeywordResearchConfig, builder) -> dict`
+- **Description:** Accepts a query string and a maximum results integer (default 20). Returns a dictionary with key `"keywords"` containing a list of suggested keywords.
+- **Example Output:**  
+  ```json
+  {"keywords": ["marketing keyword 1", "marketing keyword 2", "..."]}
+  ```
+
+### `competitor_analysis`
+<!-- - **Signature:** `async def competitor_analysis(config: CompetitorAnalysisConfig, builder) -> dict` -->
+- **Description:** Accepts a competitor name and a maximum result count (default 5). Returns a dictionary with key `"competitor_report"` containing a summary of competitor strategies.
+- **Example Output:**  
+  ```json
+  {"competitor_report": "Competitor XYZ uses aggressive pricing and targets young professionals."}
+  ```
+
+### `demographic_analysis`
+<!-- - **Signature:** `async def demographic_analysis(config: DemographicAnalysisConfig, builder) -> dict` -->
+- **Description:** Accepts a region string and returns a dictionary with key `"demographic_insights"` that provides demographic and psychographic insights.
+- **Example Output:**  
+  ```json
+  {"demographic_insights": "In Region A, users are mostly aged 25-34 with high digital engagement."}
+  ```
+
+### `persona_builder`
+<!-- - **Signature:** `async def persona_builder(config: PersonaBuilderConfig, builder) -> dict` -->
+- **Description:** Aggregates outputs from the above functions. Accepts a persona name and returns a dictionary with key `"audience_persona"` containing a structured persona document.
+- **Example Output:**  
+  ```json
+  {
+      "audience_persona": {
+          "name": "Target Persona",
+          "keywords": [...],
+          "competitor_report": "...",
+          "demographic_insights": "..."
+      }
+  }
+  ```
+
+## YAML Configuration Context
+The project uses a YAML configuration file (`workflow.yml`) to define the agent's workflow:
+```yaml
+workflow:
+  _type: tool_calling_agent
+  tool_names: [keyword_research, competitor_analysis, demographic_analysis, persona_builder]
+  llm_name: nim_llm
+  verbose: true
+  handle_tool_errors: true
+```
+
+## Coding Guidelines
+<!-- - Use asynchronous functions (`async def`) for tool implementations. -->
+- Ensure all custom functions return a dictionary with the expected keys.
+- Ensure no other functions are related by the changes, if any function is to be affected, make the necessary modifications there too
+- Follow the naming conventions provided in the configuration (e.g., `keyword_research`).
+
+## Additional Context
+- When editing or adding new functions, include clear inline comments and type annotations.
+- This file serves as a guideline for AI completions in Cursor IDE—helping maintain consistency, readability, and correct function signatures.

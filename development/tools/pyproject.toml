@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aiq_web_search"
+version = "0.1.0"
+dependencies = [
+    "agentiq[langchain]",
+    "aiohttp>=3.8.0",
+]
+requires-python = ">=3.10"
+description = "Web Search Agent for AgentIQ that enables real-time data retrieval"
+keywords = ["ai", "agents", "web search", "research", "data retrieval"]
+classifiers = ["Programming Language :: Python"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[project.entry-points.'aiq.components']
+aiq_web_search = "aiq_web_search.register" 
