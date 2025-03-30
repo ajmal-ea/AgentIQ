@@ -1,0 +1,134 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025
+# SPDX-License-Identifier: Apache-2.0
+
+# Advanced configuration with a stepwise orchestration workflow
+
+functions:
+  # Individual specialized agents
+  keyword_research:
+    _type: keyword_research
+    description: "Research and identify relevant keywords for a target market"
+    llm_name: nim_llm
+    query: "${input}"
+  
+  competitor_analysis:
+    _type: competitor_analysis
+    description: "Analyze strategies of competitors in a target market"
+    llm_name: nim_llm
+    market: "${input}"
+    competitors: null  # Will be dynamically set based on input if needed
+  
+  demographic_analysis:
+    _type: demographic_analysis
+    description: "Analyze demographics and psychographics of a target market"
+    llm_name: nim_llm
+    market: "${input}"
+  
+  persona_builder:
+    _type: persona_builder
+    description: "Build detailed audience personas based on research data"
+    llm_name: nim_llm
+    market: "${input}"
+    keyword_data: null  # Will be filled during runtime
+    competitor_data: null  # Will be filled during runtime
+    demographic_data: null  # Will be filled during runtime
+  
+  # Web search tool
+  web_search:
+    _type: web_search
+    description: "Search the web for market information and competitor data"
+    llm_name: nim_llm
+
+llms:
+  nim_llm:
+    _type: nim
+    model_name: meta/llama-3.1-70b-instruct
+    temperature: 0.2
+  
+  openai_llm:
+    _type: openai
+    model_name: gpt-4o
+    temperature: 0.2
+
+# Workflow with separate steps and orchestration
+workflow:
+  _type: sequential
+  steps:
+    - name: market_research_phase
+      description: "Initial market research phase"
+      _type: react_agent
+      tool_names: [web_search]
+      llm_name: nim_llm
+      verbose: true
+      retry_parsing_errors: true
+      max_retries: 3
+      
+    - name: keyword_analysis_phase
+      description: "Keyword research phase"
+      _type: react_agent
+      tool_names: [keyword_research]
+      llm_name: nim_llm
+      verbose: true
+      retry_parsing_errors: true
+      max_retries: 3
+      
+    - name: competitive_analysis_phase
+      description: "Competitor analysis phase"
+      _type: react_agent
+      tool_names: [competitor_analysis]
+      llm_name: nim_llm
+      verbose: true
+      retry_parsing_errors: true
+      max_retries: 3
+      
+    - name: demographic_analysis_phase
+      description: "Demographic analysis phase"
+      _type: react_agent
+      tool_names: [demographic_analysis]
+      llm_name: nim_llm
+      verbose: true
+      retry_parsing_errors: true
+      max_retries: 3
+      
+    - name: persona_building_phase
+      description: "Persona building phase"
+      _type: react_agent
+      tool_names: [persona_builder]
+      llm_name: nim_llm
+      verbose: true
+      retry_parsing_errors: true
+      max_retries: 3
+      
+    - name: final_report_phase
+      description: "Final report generation"
+      _type: single_call
+      prompt_template: |
+        You are an audience research coordinator. Based on all the research phases conducted, create a comprehensive audience research report.
+        
+        MARKET RESEARCH:
+        ${market_research_phase}
+        
+        KEYWORD ANALYSIS:
+        ${keyword_analysis_phase}
+        
+        COMPETITOR ANALYSIS:
+        ${competitive_analysis_phase}
+        
+        DEMOGRAPHIC ANALYSIS:
+        ${demographic_analysis_phase}
+        
+        AUDIENCE PERSONAS:
+        ${persona_building_phase}
+        
+        Your report should include the following sections:
+        1. Executive Summary
+        2. Market Overview
+        3. Keyword Analysis
+        4. Competitor Landscape
+        5. Audience Demographics and Psychographics
+        6. Audience Personas
+        7. Content Strategy Recommendations
+        8. Channel Strategy Recommendations
+        9. Next Steps and Action Plan
+        
+      llm_name: nim_llm 

@@ -196,7 +196,7 @@ def process_and_save_results(result: Union[Dict[str, Any], str], industry: str, 
         
         # Extract and save personas if available
         personas_saved = False
-            persona_files = []
+        persona_files = []
         
         if isinstance(data, dict) and "personas_markdown" in data:
             for i, persona_md in enumerate(data["personas_markdown"]):
@@ -236,11 +236,11 @@ Target audience for {query} in the {industry} industry.
 ## Key Interests
 - {query}
 """
-                persona_file = output_dir_path / f"{industry}_{query.replace(' ', '_')}_basic_persona.md"
-                with open(persona_file, "w") as f:
-                f.write(basic_persona)
-                persona_files.append(str(persona_file))
-            
+        persona_file = output_dir_path / f"{industry}_{query.replace(' ', '_')}_basic_persona.md"
+        with open(persona_file, "w") as f:
+            f.write(basic_persona)
+        persona_files.append(str(persona_file))
+    
         return {
             "success": True,
             "result_file": str(result_file),
@@ -309,7 +309,7 @@ def main():
                 logger.info(f"Generated personas saved to: {', '.join(output['persona_files'])}")
             if "result_file" in output:
                 logger.info(f"Complete results saved to: {output['result_file']}")
-    else:
+        else:
             logger.error(f"Audience research failed: {output.get('error', 'Unknown error')}")
             if "error_file" in output:
                 logger.info(f"Error details saved to: {output['error_file']}")

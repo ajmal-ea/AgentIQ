@@ -42,7 +42,7 @@ from aiq.cli.register_workflow import register_function
 # from aiq_utils.config_manager import ConfigManager
 
 # Load environment variables
-load_dotenv()
+load_dotenv(override=True)
 
 logger = logging.getLogger(__name__)
 
@@ -2615,16 +2615,16 @@ async def audience_research_workflow(config: AudienceResearchWorkflowConfig, bui
                 # Format results into a comprehensive report
                 report = await format_audience_research_report(results, industry, region, config.mode)
                 return report
-                
+            
             except Exception as e:
                 logger.error(f"Error in audience research workflow: {str(e)}")
                 return {
-                    "error": str(e),
-                    "summary": f"An error occurred while orchestrating audience research for {industry} in {region}",
-                    "industry": industry,
-                    "region": region,
-                    "available_results": results
-                }
+                        "error": str(e),
+                        "summary": f"An error occurred while orchestrating audience research for {industry} in {region}",
+                        "industry": industry,
+                        "region": region,
+                        "available_results": results
+                    }
         
         except Exception as e:
             logger.error(f"Unexpected error in audience research workflow: {str(e)}")

@@ -84,7 +84,8 @@ workflow:
   # Use tool calling agent as central orchestrator instead of React agent
   _type: tool_calling_agent
   # Give it access to our custom tools
-  tool_names: [keyword_research, competitor_analysis, demographic_analysis, persona_builder, audience_research]
+  tool_names: [aiq_audience_research/keyword_research, aiq_audience_research/competitor_analysis, aiq_audience_research/demographic_analysis, aiq_audience_research/persona_builder, aiq_audience_research/audience_research]
+  # tool_names: [keyword_research, competitor_analysis, demographic_analysis, persona_builder, audience_research]
   # Tell it which LLM to use
   llm_name: nim_llm
   # Make it verbose for debugging
