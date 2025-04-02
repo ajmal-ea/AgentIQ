@@ -2,69 +2,87 @@
 # SPDX-License-Identifier: Apache-2.0
 
 functions:
-  # Individual specialized agents
-  keyword_research:
-    _type: keyword_research
-    description: "Research and identify relevant keywords for a target market"
-    llm_name: nim_llm
-    query: "${input}"
-  
-  competitor_analysis:
-    _type: competitor_analysis
-    description: "Analyze strategies of competitors in a target market"
-    llm_name: nim_llm
-    market: "${input}"
-    industry: "${input}"
-    competitors: null  # Will be dynamically set based on input if needed
-  
-  demographic_analysis:
-    _type: demographic_analysis
-    description: "Analyze demographics and psychographics of a target market"
-    llm_name: nim_llm
-    market: "${input}"
-    industry: "${input}"
-  
-  persona_builder:
-    _type: persona_builder
-    description: "Build detailed audience personas based on research data"
-    llm_name: nim_llm
-    market: "${input}"
-    industry: "${input}"
-    keyword_data: null  # Will be filled during runtime
-    competitor_data: null  # Will be filled during runtime
-    demographic_data: null  # Will be filled during runtime
-  
   # Web search tool using Tavily (built-in)
   internet_search:
-    _type: tavily_internet_search
-    description: "Search the web for market information and competitor data. USAGE: Input must be a JSON with 'query' field, e.g. {\"query\": \"your search query\"}"
+    _type: aiq.plugins.langchain.tools/tavily_internet_search
+    description: "Search the web for market information and competitor data"
     max_results: 5
 
 llms:
   nim_llm:
     _type: nim
-    model_name: meta/llama-3.1-70b-instruct
+    model_name: nvidia/llama-3.3-nemotron-super-49b-v1
     temperature: 0.2
   
   openai_llm:
     _type: openai
     model_name: gpt-4o
-    temperature: 0.2
+    temperature: 0.0
 
 workflow:
-  _type: react_agent
-  tool_names: [internet_search, keyword_research, competitor_analysis, demographic_analysis, persona_builder]
+  _type: aiq.agent.react_agent/react_agent
+  tool_names: [internet_search]
   llm_name: nim_llm
   verbose: true
   retry_parsing_errors: true
   max_retries: 3
+  recursion_limit: 50
   additional_instructions: |
-    IMPORTANT: When using tools, always format your input as a valid JSON object.
+    You are an Audience Research Agent specifically designed to provide comprehensive audience analysis.
     
-    For string-only tools like internet_search, use the format:
-    {"query": "your search query"}
+    EXTREMELY IMPORTANT INSTRUCTIONS:
     
-    For structured tools like persona_builder, use the format:
-    {"input_data": {"name": "Persona Name", "description": "Persona description"}}
+    1. You MUST run at least 7 different internet searches before providing your final answer.
+    2. You are NOT gathering information about products - you are analyzing the AUDIENCE who uses these products.
+    3. This is NOT a product research task - this is strictly a TARGET AUDIENCE ANALYSIS task.
     
-    Always wrap string values in double quotes and follow proper JSON syntax. 
+    1. Search: "[product] market demographics" - to gather demographic data on users
+    2. Search: "[product] buyer personas" - to find existing persona information
+    3. Search: "[product] keywords trends" - to identify relevant keywords
+    4. Search: "[product] competitors analysis" - to identify key competitors
+    5. Search: "[product] customer pain points" - to understand user challenges
+    6. Search: "[product] target audience income levels" - to gather economic data
+    7. Search: "[product] user psychographics" - to understand behaviors and preferences
+    
+    When using the internet_search tool, format your input exactly like this:
+    ```
+    Action: internet_search
+    Action Input: {"query": "exact search term from above"}
+    
+    After EACH search, analyze what additional information you need for your final report.
+    
+    YOUR FINAL ANSWER MUST INCLUDE THESE EXACTLY NAMED SECTIONS:
+    
+    1. KEYWORD ANALYSIS:
+       - List at least 15-20 relevant keywords and search terms
+       - Group keywords by search intent (informational, transactional, etc.)
+       - Include long-tail keyword variations
+    
+    2. COMPETITOR ANALYSIS:
+       - Identify 5-7 major competitors in the space
+       - Analyze their market positioning and target audience
+       - Highlight their strengths and weaknesses
+    
+    3. DEMOGRAPHIC ANALYSIS:
+       - Age ranges of the target audience
+       - Income levels and economic factors
+       - Geographic distribution if relevant
+       - Education and technical proficiency levels
+       - Professional backgrounds
+    
+    4. BUYER PERSONAS (create at least 2-3):
+       - Name and role (e.g., "Professional Athlete Alex")
+       - Detailed background and demographics
+       - Goals and challenges
+       - Decision-making factors
+       - Preferred communication channels
+    
+    5. RECOMMENDATIONS:
+       - Content strategy recommendations
+       - Marketing channel recommendations
+       - Product positioning recommendations
+    
+    DO NOT proceed to your final answer until you have run ALL 7 searches listed above.
+    If one search fails to yield good results, try a slightly different search query.
+    
+    CRITICALLY IMPORTANT: Your job is to analyze the AUDIENCE for these products, not the products themselves.

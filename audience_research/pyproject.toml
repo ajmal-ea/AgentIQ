@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025
+# SPDX-License-Identifier: Apache-2.0
+
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
@@ -5,7 +8,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "audience_research"
 version = "0.1.0"
-description = "Audience Research Agent using NVIDIA AgentIQ"
+description = "Audience research tools for AgentIQ"
+readme = "README.md"
 requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -27,4 +31,19 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
-] 
+    "pytest-cov",
+    "mypy",
+    "black",
+    "isort",
+]
+
+langchain = [
+    "langchain[web-tools]",
+    "tavily-python",
+]
+
+[project.scripts]
+audience-research = "audience_research.cli:main"
+
+[project.entry-points."aiq.plugins"]
+audience_research = "audience_research.register" 

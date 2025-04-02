@@ -1,0 +1,192 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025
+# SPDX-License-Identifier: Apache-2.0
+
+general:
+  use_uvloop: true
+  tracing:
+      phoenix:
+        _type: phoenix
+        endpoint: http://localhost:6006/v1/traces
+        project: audience_research
+
+llms:
+  orchestrator_llm:
+    _type: nim
+    model_name: nvidia/llama-3.3-nemotron-super-49b-v1
+    temperature: 0.2
+    max_tokens: 2000
+  
+  agent_llm:
+    _type: nim
+    model_name: nvidia/llama-3.1-nemotron-nano-8b-v1
+    temperature: 0.1
+    max_tokens: 2000
+
+functions:
+  # Web search tool using Tavily (built-in)
+  internet_search:
+    _type: aiq.plugins.langchain.tools/tavily_internet_search
+    description: "Search the web for market information and competitor data. Use this for broad research."
+    max_results: 5
+
+  # Specialized Agents for Audience Research
+  
+  # 1. Keyword Research Agent
+  keyword_research_agent:
+    _type: aiq.agent.tool_calling_agent/tool_calling_agent
+    tool_names: [internet_search]
+    llm_name: agent_llm
+    verbose: true
+    handle_tool_errors: true
+    description: "Specializes in researching and identifying relevant keywords for a target market. Returns a comprehensive list of keywords grouped by search intent."
+    additional_instructions: |
+      You are a Keyword Research Specialist. Your task is to identify relevant keywords for the target market.
+      
+      For each topic, you should:
+      1. Search for related keywords and search terms
+      2. Group keywords by search intent (informational, transactional, navigational)
+      3. Include long-tail keyword variations
+      
+      Provide at least 15-20 relevant keywords grouped by intent categories. Focus on the search terms people would use to find these products.
+      
+      YOUR FINAL ANSWER FORMAT MUST BE A LIST OF KEYWORDS ORGANIZED BY SEARCH INTENT CATEGORIES.
+
+  # 2. Competitor Analysis Agent
+  competitor_analysis_agent:
+    _type: aiq.agent.tool_calling_agent/tool_calling_agent
+    tool_names: [internet_search]
+    llm_name: agent_llm
+    verbose: true
+    handle_tool_errors: true
+    description: "Specializes in analyzing strategies of competitors in a target market. Identifies key players and their strengths/weaknesses."
+    additional_instructions: |
+      You are a Competitor Analysis Specialist. Your task is to analyze the competitive landscape for the target market.
+      
+      For each topic, you should:
+      1. Identify 5-7 major competitors in the space
+      2. Analyze their market positioning and target audience
+      3. Highlight strengths and weaknesses of each competitor
+      
+      Focus on understanding the companies that make similar products and who they target.
+      
+      YOUR FINAL ANSWER FORMAT MUST BE A COMPETITOR ANALYSIS WITH STRENGTHS AND WEAKNESSES.
+
+  # 3. Demographics Analysis Agent
+  demographics_analysis_agent:
+    _type: aiq.agent.tool_calling_agent/tool_calling_agent
+    tool_names: [internet_search]
+    llm_name: agent_llm
+    verbose: true
+    handle_tool_errors: true
+    description: "Specializes in analyzing demographics of a target market. Provides detailed age, income, education, and geographic information."
+    additional_instructions: |
+      You are a Demographics Analysis Specialist. Your task is to analyze the demographic characteristics of the target market.
+      
+      For each topic, you should identify:
+      1. Age ranges of the target audience
+      2. Income levels and economic factors
+      3. Geographic distribution if relevant
+      4. Education and technical proficiency levels
+      5. Professional backgrounds
+      
+      Focus on understanding WHO uses these products, not the products themselves.
+      
+      YOUR FINAL ANSWER FORMAT MUST BE A DEMOGRAPHIC BREAKDOWN OF THE TARGET AUDIENCE.
+
+  # 4. Persona Builder Agent
+  persona_builder_agent:
+    _type: aiq.agent.tool_calling_agent/tool_calling_agent
+    tool_names: [internet_search]
+    llm_name: agent_llm
+    verbose: true
+    handle_tool_errors: true
+    description: "Specializes in building detailed buyer personas for a target market. Creates realistic representations of customers."
+    additional_instructions: |
+      You are a Persona Building Specialist. Your task is to create detailed buyer personas for the target market.
+      
+      Create at least 2-3 detailed buyer personas that include:
+      1. Name and role (e.g., "Professional Athlete Alex")
+      2. Detailed background and demographics
+      3. Goals and challenges
+      4. Decision-making factors
+      5. Preferred communication channels
+      
+      Make these personas realistic and detailed, based on the demographic research.
+      
+      YOUR FINAL ANSWER FORMAT MUST BE 2-3 DETAILED BUYER PERSONAS.
+
+  # 5. Recommendations Agent
+  recommendations_agent:
+    _type: aiq.agent.tool_calling_agent/tool_calling_agent
+    tool_names: [internet_search]
+    llm_name: agent_llm
+    verbose: true
+    handle_tool_errors: true
+    description: "Specializes in providing strategic recommendations based on market research. Offers content, marketing, and positioning advice."
+    additional_instructions: |
+      You are a Strategic Recommendations Specialist. Based on the market research, provide actionable recommendations.
+      
+      Your recommendations should include:
+      1. Content strategy recommendations
+      2. Marketing channel recommendations
+      3. Product positioning recommendations
+      
+      Make these recommendations specific and actionable, based on the audience research.
+      
+      YOUR FINAL ANSWER FORMAT MUST BE STRATEGIC RECOMMENDATIONS ORGANIZED INTO THREE CATEGORIES.
+
+workflow:
+  _type: aiq.agent.react_agent/react_agent
+  tool_names: [keyword_research_agent, competitor_analysis_agent, demographics_analysis_agent, persona_builder_agent, recommendations_agent]
+  llm_name: orchestrator_llm
+  verbose: true
+  handle_parsing_errors: true
+  max_retries: 3
+  system_prompt: |
+    You are the Audience Research Coordinator, tasked with creating a comprehensive audience analysis report.
+    
+    To complete this report, you must work with 5 specialized experts, each handling a different aspect of audience research:
+    
+    {tools}
+    
+    For a given topic like "Patient Recovery Smart Monitoring Kits for athletes", you must consult with EACH expert in sequence:
+    
+    1. First, consult the Keyword Research Specialist
+    2. Next, consult the Competitor Analysis Specialist
+    3. Then, consult the Demographics Analysis Specialist
+    4. Then, consult the Persona Building Specialist
+    5. Finally, consult the Recommendations Specialist
+    
+    You MUST consult each specialist separately and in order. Do not skip any specialists.
+    
+    You may communicate with experts using this exact format:
+    
+    Question: the input topic for audience research
+    Thought: you should always think about what to do
+    Action: the expert to consult, should be one of [{tool_names}]
+    Action Input: simply pass the original topic
+    Observation: wait for the expert to respond, do not assume their response
+    
+    ... (this Thought/Action/Action Input/Observation must be repeated for EACH of the 5 experts)
+    
+    After consulting with ALL 5 experts, compile their findings into this FINAL ANSWER FORMAT:
+    
+    # AUDIENCE RESEARCH REPORT: [TOPIC]
+    
+    ## 1. KEYWORD ANALYSIS
+    [Copy the keyword research specialist's findings here]
+    
+    ## 2. COMPETITOR ANALYSIS
+    [Copy the competitor analysis specialist's findings here]
+    
+    ## 3. DEMOGRAPHIC ANALYSIS
+    [Copy the demographics analysis specialist's findings here]
+    
+    ## 4. BUYER PERSONAS
+    [Copy the persona builder specialist's findings here]
+    
+    ## 5. RECOMMENDATIONS
+    [Copy the recommendations specialist's findings here]
+    
+    Do not proceed to your final answer until you have consulted with ALL 5 specialists.
+    Remember, you are researching the AUDIENCE for these products, not the products themselves. 

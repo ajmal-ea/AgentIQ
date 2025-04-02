@@ -3,7 +3,7 @@
 
 import logging
 import json
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -14,7 +14,10 @@ from aiq.builder.function_info import FunctionInfo
 from aiq.cli.register_workflow import register_function
 from aiq.data_models.component_ref import EmbedderRef, LLMRef
 from aiq.data_models.function import FunctionBaseConfig
+from aiq.data_models.workflow import WorkflowBaseConfig, WorkflowInfo
 from pydantic import BaseModel
+from aiq.graph.graph import Graph
+from aiq.agent.react_agent.prompt import react_agent_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +27,15 @@ class KeywordResearchConfig(FunctionBaseConfig, name="keyword_research"):
     llm_name: LLMRef
     query: str
 
+# Define the input schema for keyword research
+class KeywordResearchInput(BaseModel):
+    input_data: Dict[str, Any]
+
 @register_function(config_type=KeywordResearchConfig)
 async def keyword_research(config: KeywordResearchConfig, builder: Builder):
     """Agent for keyword research"""
-    from langchain_core.tools import Tool
+    from langchain_core.tools import Tool, StructuredTool
+    from langchain_core.pydantic_v1 import BaseModel, Field
     
     llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
     
@@ -54,11 +62,53 @@ async def keyword_research(config: KeywordResearchConfig, builder: Builder):
         response = await llm.ainvoke(prompt)
         return response
     
-    async def _inner(query: str) -> str:
+    # Process structured input
+    async def _process_input(input_data: Any) -> str:
+        """Process the input data from React agent"""
+        logger.info(f"Performing keyword research with input: {input_data}")
+        
+        # Handle different input formats
+        query = ""
+        
+        # Try to handle both dict and string inputs
+        if isinstance(input_data, dict):
+            # Extract query from input data dictionary
+            if "input_data" in input_data and isinstance(input_data["input_data"], dict):
+                # Extract from nested input_data structure
+                query = input_data["input_data"].get("query", "")
+            else:
+                # Try direct key access
+                query = input_data.get("query", "")
+        elif isinstance(input_data, str):
+            # If input is a string, use it directly
+            query = input_data.strip('"\'')
+            logger.info(f"Using string input as query: {query}")
+        
+        # Fall back to config query if not provided in input
+        if not query:
+            query = config.query
+            logger.info(f"Using fallback query from config: {query}")
+            
+        # Execute the keyword search
         result = await _search_keywords(query)
         return result
     
-    yield FunctionInfo.from_fn(_inner, description=config.description)
+    # Define the structured tool using Pydantic schema
+    class KeywordInputSchema(BaseModel):
+        input_data: Dict[str, Any] = Field(
+            description="Input data dictionary with 'query' field for keyword research"
+        )
+    
+    # Create a structured tool that accepts the schema
+    tool = StructuredTool.from_function(
+        func=_process_input,
+        name="keyword_research",
+        description=config.description,
+        args_schema=KeywordInputSchema,
+        handle_tool_error=True,
+    )
+    
+    yield FunctionInfo.from_tool(tool, description=config.description)
 
 # Competitor Analysis Agent
 class CompetitorAnalysisConfig(FunctionBaseConfig, name="competitor_analysis"):
@@ -68,10 +118,15 @@ class CompetitorAnalysisConfig(FunctionBaseConfig, name="competitor_analysis"):
     industry: str
     competitors: Optional[List[str]] = None
 
+# Define the input schema for competitor analysis
+class CompetitorAnalysisInput(BaseModel):
+    input_data: Dict[str, Any]
+
 @register_function(config_type=CompetitorAnalysisConfig)
 async def competitor_analysis(config: CompetitorAnalysisConfig, builder: Builder):
     """Agent for competitor analysis"""
-    from langchain_core.tools import Tool
+    from langchain_core.tools import Tool, StructuredTool
+    from langchain_core.pydantic_v1 import BaseModel, Field
     
     llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
     
@@ -101,11 +156,59 @@ async def competitor_analysis(config: CompetitorAnalysisConfig, builder: Builder
         response = await llm.ainvoke(prompt)
         return response
     
-    async def _inner(market: str) -> str:
-        result = await _analyze_competitors(market, config.industry, config.competitors)
+    # Process structured input
+    async def _process_input(input_data: Any) -> str:
+        """Process the input data from React agent"""
+        logger.info(f"Analyzing competitors with input: {input_data}")
+        
+        # Initialize with default values
+        market = config.market
+        industry = config.industry
+        competitors = config.competitors
+        
+        # Try to handle both dict and string inputs
+        if isinstance(input_data, dict):
+            # Extract from input data dictionary
+            if "input_data" in input_data and isinstance(input_data["input_data"], dict):
+                # Extract from nested input_data structure
+                inner_data = input_data["input_data"]
+                market = inner_data.get("market", market)
+                industry = inner_data.get("industry", industry)
+                if "competitors" in inner_data:
+                    competitors = inner_data["competitors"]
+            else:
+                # Try direct key access
+                market = input_data.get("market", market)
+                industry = input_data.get("industry", industry)
+                if "competitors" in input_data:
+                    competitors = input_data["competitors"]
+        elif isinstance(input_data, str):
+            # If input is a string, try to use it as market
+            input_str = input_data.strip('"\'')
+            if input_str:
+                market = input_str
+                logger.info(f"Using string input as market: {market}")
+            
+        # Execute the competitor analysis    
+        result = await _analyze_competitors(market, industry, competitors)
         return result
     
-    yield FunctionInfo.from_fn(_inner, description=config.description)
+    # Define the structured tool using Pydantic schema
+    class CompetitorInputSchema(BaseModel):
+        input_data: Dict[str, Any] = Field(
+            description="Input data dictionary with 'market', 'industry', and 'competitors' fields"
+        )
+    
+    # Create a structured tool that accepts the schema
+    tool = StructuredTool.from_function(
+        func=_process_input,
+        name="competitor_analysis",
+        description=config.description,
+        args_schema=CompetitorInputSchema,
+        handle_tool_error=True,
+    )
+    
+    yield FunctionInfo.from_tool(tool, description=config.description)
 
 # Demographic Analysis Agent
 class DemographicAnalysisConfig(FunctionBaseConfig, name="demographic_analysis"):
@@ -114,10 +217,15 @@ class DemographicAnalysisConfig(FunctionBaseConfig, name="demographic_analysis")
     market: str
     industry: str
 
+# Define the input schema for demographic analysis
+class DemographicAnalysisInput(BaseModel):
+    input_data: Dict[str, Any]
+
 @register_function(config_type=DemographicAnalysisConfig)
 async def demographic_analysis(config: DemographicAnalysisConfig, builder: Builder):
     """Agent for demographic analysis"""
-    from langchain_core.tools import Tool
+    from langchain_core.tools import Tool, StructuredTool
+    from langchain_core.pydantic_v1 import BaseModel, Field
     
     llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
     
@@ -142,11 +250,54 @@ async def demographic_analysis(config: DemographicAnalysisConfig, builder: Build
         response = await llm.ainvoke(prompt)
         return response
     
-    async def _inner(market: str) -> str:
-        result = await _analyze_demographics(market, config.industry)
+    # Process structured input
+    async def _process_input(input_data: Any) -> str:
+        """Process the input data from React agent"""
+        logger.info(f"Analyzing demographics with input: {input_data}")
+        
+        # Initialize with default values
+        market = config.market
+        industry = config.industry
+        
+        # Try to handle both dict and string inputs
+        if isinstance(input_data, dict):
+            # Extract from input data dictionary
+            if "input_data" in input_data and isinstance(input_data["input_data"], dict):
+                # Extract from nested input_data structure
+                inner_data = input_data["input_data"]
+                market = inner_data.get("market", market)
+                industry = inner_data.get("industry", industry)
+            else:
+                # Try direct key access
+                market = input_data.get("market", market)
+                industry = input_data.get("industry", industry)
+        elif isinstance(input_data, str):
+            # If input is a string, try to use it as market
+            input_str = input_data.strip('"\'')
+            if input_str:
+                market = input_str
+                logger.info(f"Using string input as market: {market}")
+            
+        # Execute the demographic analysis
+        result = await _analyze_demographics(market, industry)
         return result
     
-    yield FunctionInfo.from_fn(_inner, description=config.description)
+    # Define the structured tool using Pydantic schema
+    class DemographicInputSchema(BaseModel):
+        input_data: Dict[str, Any] = Field(
+            description="Input data dictionary with 'market' and 'industry' fields"
+        )
+    
+    # Create a structured tool that accepts the schema
+    tool = StructuredTool.from_function(
+        func=_process_input,
+        name="demographic_analysis",
+        description=config.description,
+        args_schema=DemographicInputSchema,
+        handle_tool_error=True,
+    )
+    
+    yield FunctionInfo.from_tool(tool, description=config.description)
 
 # Persona Builder Agent
 class PersonaBuilderConfig(FunctionBaseConfig, name="persona_builder"):
@@ -208,20 +359,45 @@ async def persona_builder(config: PersonaBuilderConfig, builder: Builder):
         return response
     
     # New implementation to support structured input from React agent
-    async def _process_input_data(input_data: Dict[str, Any]) -> str:
+    async def _process_input_data(input_data: Any) -> str:
         """Process the input data from React agent"""
         logger.info(f"Building persona with input data: {input_data}")
         
-        # Extract name and description from input data if available
-        persona_name = input_data.get("name", "")
-        persona_description = input_data.get("description", "")
+        # Initialize with default values
+        persona_name = ""
+        persona_description = ""
+        market = config.market
+        industry = config.industry
+        
+        # Try to handle both dict and string inputs
+        if isinstance(input_data, dict):
+            # Extract from input data dictionary
+            if "input_data" in input_data and isinstance(input_data["input_data"], dict):
+                # Extract from nested input_data structure
+                inner_data = input_data["input_data"]
+                persona_name = inner_data.get("name", "")
+                persona_description = inner_data.get("description", "")
+                market = inner_data.get("market", market)
+                industry = inner_data.get("industry", industry)
+            else:
+                # Try direct key access
+                persona_name = input_data.get("name", "")
+                persona_description = input_data.get("description", "")
+                market = input_data.get("market", market)
+                industry = input_data.get("industry", industry)
+        elif isinstance(input_data, str):
+            # If input is a string, try to use it as description
+            input_str = input_data.strip('"\'')
+            if input_str:
+                persona_description = input_str
+                logger.info(f"Using string input as persona description: {persona_description}")
         
         # Use the persona description as additional context
         additional_context = f"\nTarget Persona: {persona_name}\nPersona Description: {persona_description}\n" if persona_name else ""
         
         # Generate a specialized market/industry based on description if available
-        market = persona_description if persona_description else config.market
-        industry = config.industry
+        if persona_description and not market:
+            market = persona_description
         
         # Build the personas using the existing function
         result = await _build_personas(
@@ -310,87 +486,191 @@ async def audience_research_coordinator(config: AudienceResearchCoordinatorConfi
     
     yield FunctionInfo.from_fn(_inner, description=config.description)
 
-# Web Search Tool
-class WebSearchConfig(FunctionBaseConfig, name="web_search"):
-    """Configuration for web search tool"""
-    description: str = "Search the web for market information and competitor data"
-    llm_name: LLMRef
-    query: str
+# Web Search Tool - Tavily Internet Search Wrapper
+class TavilySearchConfig(FunctionBaseConfig, name="tavily_internet_search"):
+    """Configuration for Tavily internet search tool"""
+    description: str = "Search the web for market information and competitor data. USAGE: Input must be a JSON with 'query' field, e.g. {\"query\": \"your search query\"}"
+    max_results: int = 5
+    api_key: str = ""  # Optional API key, will use environment variable if not provided
 
-@register_function(config_type=WebSearchConfig)
-async def web_search(config: WebSearchConfig, builder: Builder):
-    """Web search tool for research"""
+# Define the input schema for Tavily search
+class TavilySearchInput(BaseModel):
+    query: str = ""
+
+@register_function(config_type=TavilySearchConfig)
+async def tavily_internet_search(config: TavilySearchConfig, builder: Builder):
+    """Wrapper for the Tavily internet search tool that handles both JSON and string inputs"""
+    import os
+    from langchain_core.tools import StructuredTool
+    from langchain_core.pydantic_v1 import BaseModel, Field
+    from langchain_community.tools import TavilySearchResults
+    
+    # Set Tavily API key from config or environment
+    if config.api_key:
+        os.environ["TAVILY_API_KEY"] = config.api_key
+    
+    # Helper function to parse input and extract the query
+    async def _parse_input(input_data: Union[str, Dict]) -> str:
+        """Parse the input data to extract the query"""
+        query = ""
+        
+        # Try to handle different input formats
+        if isinstance(input_data, str):
+            # If input is a string, use it directly as the query
+            # Remove any surrounding quotes and trim whitespace
+            query = input_data.strip().strip('"\'')
+            
+            # Handle edge cases where the string might be a quoted JSON or contains a query with quotes
+            if query.startswith('{') and query.endswith('}'):
+                # Might be a JSON string, try to parse it
+                try:
+                    json_data = json.loads(query)
+                    if isinstance(json_data, dict) and "query" in json_data:
+                        query = json_data["query"]
+                except:
+                    # If parsing fails, keep the original string
+                    pass
+            
+            logger.info(f"Using string input as query: {query}")
+        elif isinstance(input_data, dict):
+            # If input is a dict, try multiple ways to extract the query
+            if "query" in input_data:
+                # Direct query field
+                query = input_data["query"]
+            elif "input_data" in input_data and isinstance(input_data["input_data"], dict):
+                # Nested input_data structure
+                query = input_data["input_data"].get("query", "")
+            
+            logger.info(f"Extracted query from dict: {query}")
+        else:
+            # Default to empty string if input format is unrecognized
+            logger.warning(f"Unrecognized input format: {type(input_data)}")
+        
+        return query
+    
+    # Function to perform the actual search using Tavily
+    async def _perform_search(query: str) -> str:
+        """Perform the search using Tavily Search API"""
+        logger.info(f"Performing Tavily search with query: {query}")
+        
+        try:
+            # Use the LangChain Tavily tool directly instead of trying to get it from builder
+            # This is more reliable as it ensures we have a proper Tavily tool instance
+            tavily_search = TavilySearchResults(max_results=config.max_results)
+            search_results = await tavily_search.ainvoke({'query': query})
+            
+            # Format the results for better readability
+            formatted_results = "\n\n---\n\n".join(
+                [f'<Document href="{doc["url"]}"/>\n{doc["content"]}\n</Document>' 
+                for doc in search_results]
+            )
+            
+            return formatted_results
+        except Exception as e:
+            logger.error(f"Error performing Tavily search: {str(e)}")
+            # Return a graceful error message
+            return f"Sorry, I encountered an error while searching: {str(e)}"
+    
+    # The main function that handles any input format
+    async def _flexible_search(input_data: Any) -> str:
+        """Flexible search function that handles various input formats"""
+        # Parse the input to extract the query
+        query = await _parse_input(input_data)
+        
+        if not query:
+            return "Please provide a search query."
+        
+        # Perform the search
+        result = await _perform_search(query)
+        return result
+    
+    # Define the schema for structured input
+    class SearchInputSchema(BaseModel):
+        query: str = Field(
+            description="The search query to use for finding information"
+        )
+    
+    # Create a structured tool
+    tool = StructuredTool.from_function(
+        func=_flexible_search,
+        name="internet_search",
+        description=config.description,
+        args_schema=SearchInputSchema,
+        handle_tool_error=True,
+    )
+    
+    yield FunctionInfo.from_tool(tool, description=config.description)
+
+class OutputParserFixConfig(FunctionBaseConfig, name="output_parser_fix"):
+    """Configuration for the output parser fix tool that uses LLM to reformat output."""
+    description: str = "Fix output parsing errors using LLM"
+    llm_name: Optional[LLMRef] = None
+
+@register_function(config_type=OutputParserFixConfig)
+async def output_parser_fix(config: OutputParserFixConfig, builder: Builder):
+    """Register a tool to fix output parsing errors using LLM."""
     from langchain_core.tools import Tool
-    import requests
-    from bs4 import BeautifulSoup
+    from .output_parser_fix import reparse_with_llm, clean_output
     
-    llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
+    # Get the LLM or use the default one
+    llm = None
+    if config.llm_name:
+        llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
     
-    async def _search_web(query: str) -> str:
-        """
-        Simulates a web search by generating synthetic search results.
+    async def _fix_output(text: str) -> str:
+        """Fix the output format of a ReAct agent response or clean up final output."""
+        logger.info(f"Processing output: {text[:100]}...")
         
-        In a production environment, this would connect to a real search API
-        or use a web scraper with proper rate limiting and permissions.
-        """
-        # For demo purposes, we'll have the LLM generate simulated search results
-        prompt = f"""
-        You are a web search simulator. Generate realistic search results for the following query:
+        # If llm was not provided in config, get a default one
+        nonlocal llm
+        if llm is None:
+            # Get any available LLM
+            available_llm_names = await builder.list_llms()
+            if available_llm_names:
+                llm = await builder.get_llm(available_llm_names[0], wrapper_type=LLMFrameworkEnum.LANGCHAIN)
+            else:
+                return "Error: No LLM available to fix output format."
         
-        Query: {query}
+        # Check if this looks like a final answer that needs cleanup
+        if "AUDIENCE RESEARCH REPORT" in text or "FINAL ANSWER" in text.upper():
+            logger.info("Detected final output - cleaning up")
+            try:
+                cleaned_output = await clean_output(text, llm)
+                return cleaned_output
+            except Exception as e:
+                logger.error(f"Error cleaning final output: {e}")
+                return text
         
-        Format your response as a list of 5-7 search results, each with:
-        1. Title (realistic page title)
-        2. URL (realistic but fictional URL)
-        3. Snippet (short excerpt from the page)
-        
-        The results should be diverse, realistic, and provide genuinely useful information about the query topic.
-        """
-        
-        search_results = await llm.ainvoke(prompt)
-        return search_results
+        # Otherwise, try to fix the ReAct format
+        try:
+            # Use our LLM-based reparser
+            agent_output = await reparse_with_llm(
+                original_output=text,
+                llm=llm,
+                error_message="The output format needs to be fixed for the ReAct agent."
+            )
+            
+            # Return the reformatted output
+            if hasattr(agent_output, "return_values") and "output" in agent_output.return_values:
+                return agent_output.return_values["output"]
+            elif hasattr(agent_output, "log"):
+                return agent_output.log
+            elif hasattr(agent_output, "tool_input"):
+                # If we got a valid AgentAction, format it properly
+                tool = agent_output.tool
+                tool_input = agent_output.tool_input
+                return f"Thought: I need to use the {tool} tool.\nAction: {tool}\nAction Input: {tool_input}"
+            else:
+                return str(agent_output)
+        except Exception as e:
+            logger.error(f"Error fixing output format: {e}")
+            return f"I encountered an error when trying to fix the format. Let me try again with a simpler approach:\n\n{text}"
     
-    async def _analyze_webpage(url: str) -> str:
-        """
-        Simulates webpage content analysis by generating synthetic content.
-        
-        In a production environment, this would fetch and parse actual webpage content
-        with proper permissions and rate limiting.
-        """
-        # For demo purposes, we'll have the LLM generate simulated webpage content
-        prompt = f"""
-        You are a webpage content simulator. Generate realistic content for a webpage with this URL:
-        
-        URL: {url}
-        
-        Format your response as:
-        1. Page Title
-        2. Main Content (several paragraphs of realistic content that would appear on this page)
-        3. Key Points/Findings (bullet points of important information)
-        
-        Make the content detailed, realistic, and focused on the topic implied by the URL.
-        """
-        
-        webpage_content = await llm.ainvoke(prompt)
-        return webpage_content
+    tool = Tool.from_function(
+        func=_fix_output,
+        name="output_parser_fix",
+        description="Fix output parsing errors using LLM or clean up final audience research reports.",
+        handle_tool_error=True,
+    )
     
-    async def _inner(query: str) -> str:
-        """Main function for the web search tool"""
-        search_results = await _search_web(query)
-        
-        # Add analysis context
-        analysis_prompt = f"""
-        You are a market research analyst. Analyze the following search results to extract key insights:
-        
-        SEARCH RESULTS FOR: {query}
-        {search_results}
-        
-        Provide a summary of the most important findings, trends, and data points from these results.
-        Focus on information that would be relevant for audience research and market analysis.
-        """
-        
-        analysis = await llm.ainvoke(analysis_prompt)
-        
-        return f"Search Results:\n{search_results}\n\nAnalysis:\n{analysis}"
-    
-    yield FunctionInfo.from_fn(_inner, description=config.description) 
+    yield FunctionInfo.from_tool(tool, description=config.description) 

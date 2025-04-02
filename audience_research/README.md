@@ -35,6 +35,24 @@ You need to set your NVIDIA API key as an environment variable:
 export NVIDIA_API_KEY=<YOUR_API_KEY>
 ```
 
+## Setting Up Tavily Search
+
+The Audience Research Agent uses Tavily Search API for web research. To use this feature:
+
+1. Create an account at [Tavily](https://tavily.com/) to get your API key
+2. Set the `TAVILY_API_KEY` environment variable:
+   ```bash
+   export TAVILY_API_KEY=your_tavily_api_key_here
+   ```
+   Alternatively, you can create a `.env` file based on the provided `.env.example` template.
+
+3. Ensure you have the langchain extras installed:
+   ```bash
+   pip install -e 'agentiq[langchain]'
+   ```
+
+The Tavily search tool is automatically included in the default configuration.
+
 ## Usage
 
 Run the workflow with the audience research query:
